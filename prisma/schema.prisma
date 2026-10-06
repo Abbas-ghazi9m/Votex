@@ -1,0 +1,98 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  VOTER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum ElectionStatus {
+  CREATED
+  ACTIVE
+  ENDED
+  FINALIZED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  walletAddress String    @unique
+  role          Role      @default(VOTER)
+  nonce         String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([walletAddress])
+}
+
+model Election {
+  id                   String            @id @default(uuid())
+  blockchainElectionId Int               @unique
+  title                String
+  description          String
+  startTime            DateTime
+  endTime              DateTime
+  metadataHash         String
+  contractAddress      String
+  status               ElectionStatus    @default(CREATED)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  candidates           Candidate[]
+  voterEligibilities   VoterEligibility[]
+  transactions         BlockchainTransaction[]
+
+  @@index([blockchainElectionId])
+  @@index([contractAddress])
+}
+
+model Candidate {
+  id                    String    @id @default(uuid())
+  blockchainCandidateId Int
+  electionId            String
+  name                  String
+  description           String
+  imageUrl              String
+  manifestoUrl          String?
+  createdAt             DateTime  @default(now())
+
+  election              Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@unique([electionId, blockchainCandidateId])
+  @@index([electionId])
+}
+
+model VoterEligibility {
+  id            String    @id @default(uuid())
+  electionId    String
+  walletAddress String
+  registeredAt  DateTime  @default(now())
+
+  election      Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@unique([electionId, walletAddress])
+  @@index([electionId])
+  @@index([walletAddress])
+}
+
+model BlockchainTransaction {
+  id          String    @id @default(uuid())
+  electionId  String
+  txHash      String    @unique
+  blockNumber BigInt?
+  type        String    // e.g. "ELECTION_CREATED", "VOTER_REGISTERED", "VOTE_CAST", "ELECTION_STARTED", "ELECTION_FINALIZED"
+  fromAddress String?
+  timestamp   DateTime  @default(now())
+  status      String    // "CONFIRMED", "PENDING", "FAILED"
+
+  election    Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@index([electionId])
+  @@index([txHash])
+}

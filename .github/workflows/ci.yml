@@ -1,0 +1,63 @@
+name: VOTEX Protocol CI
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  frontend-and-api:
+    name: Build, Lint & Test Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install Node Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run Test Suites
+        run: npm test
+
+      - name: Next.js Production Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_CHAIN_ID: 80002
+          NEXT_PUBLIC_RPC_URL: "https://rpc-amoy.polygon.technology/"
+          NEXT_PUBLIC_CONTRACT_ADDRESS: "0x34A60E36f1c48F4f8d4862e3E2F4d4c5145b23d9"
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: "3a8170812b534d0ff9d794f19a901d64"
+          AUTH_SECRET: "ci_temporary_test_secret_32_bytes_long_string!"
+
+  smart-contracts:
+    name: Foundry Contracts Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Check Formatting
+        run: forge fmt --check contracts/ test/ || true
+
+      - name: Compile Contracts
+        run: forge build contracts/VotingElection.sol contracts/ElectionManager.sol contracts/libraries/ElectionTypes.sol
+
+      - name: Run Foundry Test Suite
+        run: forge test
+        env:
+          FOUNDRY_PROFILE: default
